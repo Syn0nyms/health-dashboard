@@ -355,11 +355,17 @@ function buildDashboard(rows) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: ctx => {
-              const t = compliance[ctx.datasetIndex];
-              const s = t.scores[ctx.dataIndex];
-              return t.label + ': ' + (s===2 ? 'achieved' : s===1 ? 'partial' : 'missed');
-            }
+           label: ctx => {
+             const t = compliance[ctx.datasetIndex];
+             const s = t.scores[ctx.dataIndex];
+             const detail = {
+              '800 kcal': { 2: '✓ ≥800 kcal burned', 1: '~ 400–800 kcal burned', 0: '✗ <400 kcal burned' },
+              '10 km':    { 2: '✓ ≥10 km walked',    1: '~ 5–10 km walked',      0: '✗ <5 km walked' },
+              'No sugar': { 2: '✓ <2gm sugar',        1: '~ 2–20gm sugar',        0: '✗ >20gm sugar' },
+              'Sleep 7h': { 2: '✓ ≥7h sleep',         1: '~ 6–7h sleep',          0: '✗ <6h sleep' }
+             };
+             return detail[t.label][s];
+           }
           }
         }
       },
