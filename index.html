@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Health Dashboard — June 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f1117; font-family: -apple-system, 'Segoe UI', sans-serif; color: #e0e0e0; padding: 24px 16px; min-height: 100vh; }
+  .container { max-width: 740px; margin: 0 auto; }
+
+  .header { margin-bottom: 24px; }
+  .header .week { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: #545454; margin-bottom: 6px; }
+  .header h1 { font-size: 22px; font-weight: 600; color: #d7dadc; line-height: 1.3; margin-bottom: 4px; }
+  .header .sub { font-size: 12px; color: #545454; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .kpi { background: #1a1a1b; border: 1px solid #343536; border-radius: 8px; padding: 14px 12px; text-align: center; }
+  .kpi .n { font-size: 22px; font-weight: 700; line-height: 1.1; }
+  .kpi .l { font-size: 10px; color: #818384; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi .d { font-size: 10px; margin-top: 4px; font-weight: 500; }
+
+  .chart-card { background: #1a1a1b; border: 1px solid #343536; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .chart-card .ct { font-size: 11px; font-weight: 600; color: #818384; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 4px; }
+  .chart-card .cs { font-size: 11px; color: #444; margin-bottom: 14px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+  .leg { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #818384; }
+  .ls { width: 22px; height: 3px; border-radius: 2px; display: inline-block; }
+
+  .four-col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .insight { background: #1a1a1b; border: 1px solid #343536; border-radius: 8px; padding: 14px; }
+  .insight .it { font-size: 11px; font-weight: 600; color: #d7dadc; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .insight .in { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+  .insight .ib { font-size: 11px; color: #818384; line-height: 1.6; }
+
+  .annotation { font-size: 11px; color: #545454; font-style: italic; margin-top: 8px; border-top: 1px solid #2d2d2e; padding-top: 8px; line-height: 1.6; }
+  .badge { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; margin-left: 6px; vertical-align: middle; }
+  .badge-g { background: #1a3a2a; color: #46d160; }
+  .milestone { background: #1a2a1a; border: 1px solid #2a4a2a; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; }
+  .milestone .mi { font-size: 28px; }
+  .milestone .mt { font-size: 13px; font-weight: 600; color: #46d160; }
+  .milestone .ms { font-size: 11px; color: #546454; margin-top: 2px; }
+
+  .footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid #343536; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .footer .fl { font-size: 11px; color: #545454; }
+  .footer .fr { font-size: 11px; color: #545454; text-align: right; }
+
+  .loading { text-align: center; padding: 60px 20px; color: #545454; font-size: 14px; }
+
+  .gn { color: #46d160; } .rd { color: #ff585b; } .or { color: #ff4500; } .bl { color: #4fbdff; } .am { color: #f5a623; }
+
+  @media (max-width: 520px) {
+    .kpi-grid, .four-col { grid-template-columns: repeat(2, 1fr); }
+    .header h1 { font-size: 17px; }
+  }
+</style>
+</head>
+<body>
+<div class="container" id="app">
+  <div class="loading">Loading dashboard from CSV...</div>
+</div>
+
+<script>
+// ── Column indices (0-based) from the CSV data rows ──
+// Col 0: blank, Col 1: Date, Col 2: 10km, Col 3: No Sugar,
+// Col 4: Weight, Col 5: Weight(7DRA), Col 6: Change%,
+// Col 7: Sleep(Hrs), Col 8: HRV, Col 9: RHR,
+// Col 10: Steps, Col 11: Kms, Col 12: Steps/Km,
+// Col 13: Kcal, Col 14: Kcal/km, Col 15: WeightChangeYTD, Col 16: CumulativeKMs
+
+const CSV_FILE = 'Health_Tracker.csv';
+const HEADER_ROWS = 7; // rows to skip before data starts (0-indexed: rows 0-6)
+
+function parseNum(v) {
+  if (!v || v === '' || v.includes('#') || v.trim() === '-' || v.trim() === 'O') return null;
+  return parseFloat(v.replace(/,/g, '').trim());
+}
+
+function parseSleep(v) {
+  // Format: HH:MM:SS
+  if (!v || v.trim() === '') return null;
+  const parts = v.trim().split(':');
+  if (parts.length < 2) return null;
+  const h = parseInt(parts[0]);
+  const m = parseInt(parts[1]);
+  return h + m / 60;
+}
+
+function parseDate(v) {
+  if (!v || v.trim() === '') return null;
+  // Format: DD-MM-YYYY
+  const parts = v.trim().split('-');
+  if (parts.length !== 3) return null;
+  return `${parts[0]}/${parts[1]}`;  // display as DD/MM
+}
+
+function toHM(decHours) {
+  if (decHours == null) return '—';
+  const h = Math.floor(decHours);
+  const m = Math.round((decHours - h) * 60);
+  return `${h}h ${m.toString().padStart(2,'0')}m`;
+}
+
+const grid = '#2d2d2e';
+const tick = '#545454';
+
+function buildDashboard(rows) {
+  // Filter to rows with a valid date AND a valid weight
+  const data = rows.filter(r => {
+    const date = r[1] && r[1].trim();
+    const weight = parseNum(r[4]);
+    return date && date.match(/\d{2}-\d{2}-\d{4}/) && weight !== null;
+  });
+
+  if (data.length === 0) {
+    document.getElementById('app').innerHTML = '<div class="loading">No valid data found in CSV.</div>';
+    return;
+  }
+
+  // Extract arrays
+  const days    = data.map(r => parseDate(r[1]));
+  const weight  = data.map(r => parseNum(r[4]));
+  const w7dra   = data.map(r => parseNum(r[5]));
+  const sleepRaw= data.map(r => parseSleep(r[7]));
+  const hrv     = data.map(r => parseNum(r[8]));
+  const rhr     = data.map(r => parseNum(r[9]));
+  const steps   = data.map(r => parseNum(r[10]));
+  const kms     = data.map(r => parseNum(r[11]));
+  const kcal    = data.map(r => parseNum(r[13]));
+  const noSugar = data.map(r => r[3] ? r[3].trim() : '');
+
+  // Sleep shifted by 1 (previous night affects today's metrics)
+  const sleep = sleepRaw.map((_, i) => i === 0 ? null : sleepRaw[i - 1]);
+
+  // KPIs
+  const firstWeight   = weight[0];
+  const lastWeight    = weight[weight.length - 1];
+  const weightLost    = +(firstWeight - lastWeight).toFixed(2);
+  const totalKms      = kms.filter(v => v !== null).reduce((a, b) => a + b, 0).toFixed(1);
+  const firstRHR      = rhr.find(v => v !== null);
+  const lastRHR       = [...rhr].reverse().find(v => v !== null);
+  const sleepVals     = sleepRaw.filter(v => v !== null);
+  const avgSleep      = sleepVals.length ? sleepVals.reduce((a, b) => a + b, 0) / sleepVals.length : null;
+  const bestSteps     = Math.max(...steps.filter(v => v !== null));
+  const bestHRV       = Math.max(...hrv.filter(v => v !== null));
+  const bestRHR       = Math.min(...rhr.filter(v => v !== null));
+  const sleep7Days    = sleepRaw.filter(v => v !== null && v >= 7).length;
+  const totalDays     = data.length;
+  const startDate     = data[0][1].trim();
+  const endDate       = data[data.length - 1][1].trim();
+
+  // Compliance scores for chart: 2=green,1=amber,0=red
+  const comp800   = kcal.map(v => v === null ? 0 : v >= 800 ? 2 : v >= 400 ? 1 : 0);
+  const comp10km  = kms.map(v => v === null ? 0 : v >= 10 ? 2 : v >= 5 ? 1 : 0);
+  const compSugar = noSugar.map(v => v === 'Y' ? 2 : v === 'M' ? 1 : v === 'N' ? 0 : 0);
+  const compSleep = sleepRaw.map(v => v === null ? 0 : v >= 7 ? 2 : v >= 6 ? 1 : 0);
+
+  const colorMap = { 0:'#ff585b', 1:'#f5a623', 2:'#46d160' };
+
+  // Milestone text
+  const minWeight = Math.min(...weight.filter(v => v !== null));
+  const milestone = minWeight < 85
+    ? `Sub-85kg achieved — ${minWeight.toFixed(2)} kg · -${weightLost} kg total · ${totalKms} km walked`
+    : `Current best: ${minWeight.toFixed(2)} kg · -${weightLost} kg total · ${totalKms} km walked`;
+
+  // Build HTML
+  document.getElementById('app').innerHTML = `
+    <div class="header">
+      <div class="week">${startDate} – ${endDate} · ${totalDays} days</div>
+      <h1>Personal Health Dashboard <span class="badge badge-g">Live</span></h1>
+      <div class="sub">Self-tracked via Apple Watch Ultra · custom Excel tracker · auto-updated from CSV</div>
+    </div>
+
+    <div class="milestone">
+      <div class="mi">🎯</div>
+      <div>
+        <div class="mt">${milestone}</div>
+        <div class="ms">30-day projection: ~${Math.round(parseFloat(totalKms) / totalDays * 30)} km total distance</div>
+      </div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="n or">-${weightLost}<span style="font-size:13px;">kg</span></div>
+        <div class="l">total lost</div>
+        <div class="d gn">${firstWeight.toFixed(2)} → ${lastWeight.toFixed(2)}</div>
+      </div>
+      <div class="kpi">
+        <div class="n bl">${totalKms}<span style="font-size:13px;">km</span></div>
+        <div class="l">total walked</div>
+        <div class="d gn">${(parseFloat(totalKms)/totalDays).toFixed(1)} km/day avg</div>
+      </div>
+      <div class="kpi">
+        <div class="n gn">${firstRHR}→${lastRHR}</div>
+        <div class="l">RHR (bpm)</div>
+        <div class="d gn">-${Math.round((firstRHR-lastRHR)/firstRHR*100)}% in ${totalDays} days</div>
+      </div>
+      <div class="kpi">
+        <div class="n ${avgSleep >= 7 ? 'gn' : avgSleep >= 6 ? 'am' : 'rd'}">${toHM(avgSleep)}</div>
+        <div class="l">avg sleep</div>
+        <div class="d ${sleep7Days > 0 ? 'am' : 'rd'}">${sleep7Days}/${totalDays} nights ≥7h</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="ct">Weight · 7-day rolling average · daily steps</div>
+      <div class="cs">7DRA smooths daily noise — the true trend is visible. Steps consistently above 10km daily target.</div>
+      <div style="position:relative; height:230px;"><canvas id="ch1"></canvas></div>
+      <div class="legend">
+        <div class="leg"><div class="ls" style="background:#ff4500;"></div>Weight (kg)</div>
+        <div class="leg"><div class="ls" style="border-top:2px dashed #ff9966; background:none;"></div>7-day rolling avg</div>
+        <div class="leg"><div class="ls" style="border-top:2px dashed #4fbdff; background:none;"></div>Daily steps</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="ct">Sleep · HRV · RHR triangle</div>
+      <div class="cs">Sleep shown as previous night to correctly align cause and effect. Every poor sleep night produces a measurable next-morning response.</div>
+      <div style="position:relative; height:230px;"><canvas id="ch2"></canvas></div>
+      <div class="legend">
+        <div class="leg"><div class="ls" style="background:#ff585b;"></div>RHR (bpm)</div>
+        <div class="leg"><div class="ls" style="border-top:2px dashed #46d160; background:none;"></div>HRV</div>
+        <div class="leg"><div class="ls" style="border-top:2px dotted #f5a623; background:none;"></div>Sleep prev. night (hrs)</div>
+      </div>
+      <div class="annotation">Sleep offset by one day — previous night's sleep shown against next morning's HRV and RHR. Pattern is consistent: poor sleep → HRV stress spike + RHR rebound within 24 hours.</div>
+    </div>
+
+    <div class="chart-card">
+      <div class="ct">Daily target compliance</div>
+      <div class="cs">800 kcal burn · 10km walk · no sugar · sleep 7h+ — green = achieved · amber = partial · red = missed</div>
+      <div style="position:relative; height:120px;"><canvas id="ch3"></canvas></div>
+      <div class="legend" style="margin-top:10px;">
+        <div class="leg"><span style="width:10px;height:10px;border-radius:2px;background:#46d160;display:inline-block;"></span>Achieved</div>
+        <div class="leg"><span style="width:10px;height:10px;border-radius:2px;background:#f5a623;display:inline-block;"></span>Partial</div>
+        <div class="leg"><span style="width:10px;height:10px;border-radius:2px;background:#ff585b;display:inline-block;"></span>Missed</div>
+      </div>
+    </div>
+
+    <div class="four-col">
+      <div class="insight">
+        <div class="it">distance</div>
+        <div class="in bl">${totalKms}km</div>
+        <div class="ib">${Math.round(parseFloat(totalKms)/totalDays*30)}km projected at 30 days.</div>
+      </div>
+      <div class="insight">
+        <div class="it">best RHR</div>
+        <div class="in gn">${bestRHR} bpm</div>
+        <div class="ib">Personal best. Down from ${firstRHR} on day 1.</div>
+      </div>
+      <div class="insight">
+        <div class="it">best HRV</div>
+        <div class="in gn">${bestHRV}</div>
+        <div class="ib">Highest recovery reading in dataset.</div>
+      </div>
+      <div class="insight">
+        <div class="it">best day</div>
+        <div class="in or">${bestSteps.toLocaleString()}</div>
+        <div class="ib">Steps. Personal best single day.</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="fl">Data: personal · Tools: Apple Watch Ultra, Excel · ${startDate} – ${endDate}</div>
+      <div class="fr">Next milestone: ${minWeight < 85 ? 'sustain 7h+ sleep · target ' + (Math.floor(minWeight) - 1) + '.0 kg' : 'break 85 kg'}</div>
+    </div>
+  `;
+
+  // ── Chart 1: Weight + 7DRA + Steps ──
+  new Chart(document.getElementById('ch1'), {
+    type: 'line',
+    data: {
+      labels: days,
+      datasets: [
+        { label: 'Weight (kg)', data: weight, borderColor: '#ff4500', backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: '#ff4500', yAxisID: 'y1', tension: 0.3, spanGaps: true },
+        { label: '7-day avg', data: w7dra, borderColor: '#ff9966', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [5,3], pointRadius: 2, yAxisID: 'y1', tension: 0.4, spanGaps: true },
+        { label: 'Steps', data: steps, borderColor: '#4fbdff', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [4,3], pointRadius: 3, pointStyle: 'rectRot', pointBackgroundColor: steps.map(s => s === bestSteps ? '#fff' : '#4fbdff'), yAxisID: 'y2', tension: 0.3, spanGaps: true }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+      scales: {
+        x: { ticks: { font: { size: 10 }, color: tick, maxRotation: 45 }, grid: { color: grid } },
+        y1: { type: 'linear', position: 'left', ticks: { font: { size: 10 }, color: '#ff4500', callback: v => v.toFixed(1) }, grid: { color: grid } },
+        y2: { type: 'linear', position: 'right', ticks: { font: { size: 10 }, color: '#4fbdff', callback: v => Math.round(v/1000)+'k' }, grid: { drawOnChartArea: false } }
+      }
+    }
+  });
+
+  // ── Chart 2: Sleep · HRV · RHR ──
+  new Chart(document.getElementById('ch2'), {
+    type: 'line',
+    data: {
+      labels: days,
+      datasets: [
+        { label: 'RHR (bpm)', data: rhr, borderColor: '#ff585b', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 3, pointBackgroundColor: rhr.map(v => v === bestRHR ? '#fff' : '#ff585b'), yAxisID: 'y1', tension: 0.3, spanGaps: true },
+        { label: 'HRV', data: hrv, borderColor: '#46d160', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [5,3], pointRadius: 3, pointStyle: 'triangle', pointBackgroundColor: hrv.map(v => v === bestHRV ? '#fff' : '#46d160'), yAxisID: 'y1', tension: 0.3, spanGaps: true },
+        { label: 'Sleep prev. night', data: sleep, borderColor: '#f5a623', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [2,2], pointRadius: 3, pointBackgroundColor: sleep.map(v => v >= 7 ? '#fff' : '#f5a623'), yAxisID: 'y2', tension: 0.3, spanGaps: false }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          mode: 'index', intersect: false,
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.label === 'Sleep prev. night') return ctx.parsed.y == null ? 'Sleep (prev): —' : 'Sleep (prev): ' + toHM(ctx.parsed.y);
+              return ctx.dataset.label + ': ' + Math.round(ctx.parsed.y);
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { font: { size: 10 }, color: tick, maxRotation: 45 }, grid: { color: grid } },
+        y1: { type: 'linear', position: 'left', ticks: { font: { size: 10 }, color: tick }, grid: { color: grid } },
+        y2: { type: 'linear', position: 'right', min: 0, max: 11, ticks: { font: { size: 10 }, color: '#f5a623', callback: v => v.toFixed(0)+'h' }, grid: { drawOnChartArea: false } }
+      }
+    }
+  });
+
+  // ── Chart 3: Compliance ──
+  const compliance = [
+    { label: '800 kcal', scores: comp800 },
+    { label: '10 km',    scores: comp10km },
+    { label: 'No sugar', scores: compSugar },
+    { label: 'Sleep 7h', scores: compSleep }
+  ];
+
+  new Chart(document.getElementById('ch3'), {
+    type: 'bar',
+    data: {
+      labels: days,
+      datasets: compliance.map(t => ({
+        label: t.label,
+        data: t.scores.map(() => 1),
+        backgroundColor: t.scores.map(s => colorMap[s] + 'aa'),
+        borderColor: t.scores.map(s => colorMap[s]),
+        borderWidth: 1,
+        borderRadius: 2,
+        stack: 'stack'
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const t = compliance[ctx.datasetIndex];
+              const s = t.scores[ctx.dataIndex];
+              return t.label + ': ' + (s===2 ? 'achieved' : s===1 ? 'partial' : 'missed');
+            }
+          }
+        }
+      },
+      scales: {
+        x: { stacked: true, ticks: { font: { size: 10 }, color: tick, maxRotation: 45 }, grid: { display: false } },
+        y: { stacked: true, display: false, max: 4 }
+      }
+    }
+  });
+}
+
+// ── Load CSV ──
+Papa.parse(CSV_FILE, {
+  download: true,
+  skipEmptyLines: false,
+  complete: function(results) {
+    const rows = results.data.slice(HEADER_ROWS);
+    buildDashboard(rows);
+  },
+  error: function(err) {
+    document.getElementById('app').innerHTML = `<div class="loading">Could not load CSV file.<br><small style="color:#ff585b">${err.message}</small><br><br><small style="color:#545454">Make sure Health_Tracker.csv is in the same folder as this HTML file.</small></div>`;
+  }
+});
+</script>
+</body>
+</html>
