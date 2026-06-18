@@ -77,7 +77,7 @@
 // Col 13: Kcal, Col 14: Kcal/km, Col 15: WeightChangeYTD, Col 16: CumulativeKMs
 
 const CSV_FILE = 'Health_Tracker.csv';
-const HEADER_ROWS = 7; // rows to skip before data starts (0-indexed: rows 0-6)
+const HEADER_ROWS = 6; // rows to skip before data starts (0-indexed: rows 0-6)
 
 function parseNum(v) {
   if (!v || v === '' || v.includes('#') || v.trim() === '-' || v.trim() === 'O') return null;
