@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Health Dashboard — June 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f1117; font-family: -apple-system, 'Segoe UI', sans-serif; color: #e0e0e0; padding: 24px 16px; min-height: 100vh; }
+  .container { max-width: 740px; margin: 0 auto; }
+
+  .header { margin-bottom: 24px; }
+  .header .week { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: #545454; margin-bottom: 6px; }
+  .header h1 { font-size: 22px; font-weight: 600; color: #d7dadc; line-height: 1.3; margin-bottom: 4px; }
+  .header .sub { font-size: 12px; color: #545454; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .kpi { background: #1a1a1b; border: 1px solid #343536; border-radius: 8px; padding: 14px 12px; text-align: center; }
+  .kpi .n { font-size: 22px; font-weight: 700; line-height: 1.1; }
+  .kpi .l { font-size: 10px; color: #818384; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi .d { font-size: 10px; margin-top: 4px; font-weight: 500; }
+
+  .chart-card { background: #1a1a1b; border: 1px solid #343536; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .chart-card .ct { font-size: 11px; font-weight: 600; color: #818384; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 4px; }
+  .chart-card .cs { font-size: 11px; color: #444; margin-bottom: 14px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+  .leg { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #818384; }
+  .ls { width: 22px; height: 3px; border-radius: 2px; display: inline-block; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+  .four-col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .insight { background: #1a1a1b; border: 1px solid #343536; border-radius: 8px; padding: 14px; }
+  .insight .it { font-size: 11px; font-weight: 600; color: #d7dadc; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .insight .in { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+  .insight .ib { font-size: 11px; color: #818384; line-height: 1.6; }
+
+  .annotation { font-size: 11px; color: #545454; font-style: italic; margin-top: 8px; border-top: 1px solid #2d2d2e; padding-top: 8px; line-height: 1.6; }
+  .badge { display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; margin-left: 6px; vertical-align: middle; }
+  .badge-g { background: #1a3a2a; color: #46d160; }
+  .milestone { background: #1a2a1a; border: 1px solid #2a4a2a; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 12px; }
+  .milestone .mi { font-size: 28px; }
+  .milestone .mt { font-size: 13px; font-weight: 600; color: #46d160; }
+  .milestone .ms { font-size: 11px; color: #546454; margin-top: 2px; }
+
+  .footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid #343536; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .footer .fl { font-size: 11px; color: #545454; }
+  .footer .fr { font-size: 11px; color: #545454; text-align: right; }
+
+  .gn { color: #46d160; } .rd { color: #ff585b; } .or { color: #ff4500; } .bl { color: #4fbdff; } .am { color: #f5a623; }
+
+  .post-wrap { background: #1a1a1b; border: 1px solid #343536; border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
+  .post-top { padding: 10px 14px 6px; font-size: 11px; color: #545454; }
+  .post-top span { color: #4fbdff; }
+  .post-title-bar { padding: 4px 14px 10px; font-size: 16px; font-weight: 500; color: #d7dadc; line-height: 1.4; }
+  .post-flair { display: inline-block; background: #1a3a2a; color: #46d160; font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 600; margin: 0 14px 10px; }
+  .post-body-text { padding: 0 14px 12px; font-size: 12px; color: #818384; line-height: 1.7; border-top: 1px solid #2d2d2e; padding-top: 10px; }
+  .post-footer-bar { display: flex; gap: 14px; padding: 8px 14px; border-top: 1px solid #2d2d2e; }
+  .pfb { font-size: 11px; font-weight: 700; color: #545454; display: flex; align-items: center; gap: 4px; }
+  .vote { font-size: 14px; font-weight: 700; color: #ff4500; }
+
+  @media (max-width: 520px) {
+    .kpi-grid, .four-col { grid-template-columns: repeat(2, 1fr); }
+    .two-col, .three-col { grid-template-columns: 1fr; }
+    .header h1 { font-size: 17px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Reddit post header -->
+  <div class="post-wrap">
+    <div class="post-top">Posted by <span>u/trackeverything_</span> in <span>r/dataisbeautiful</span> · 1 hour ago</div>
+    <div class="post-title-bar">[OC] 16 days of self-tracked health data — broke 85kg, walked 188km, RHR dropped from 79 to 64. Built the tracker from scratch in Excel.</div>
+    <div class="post-flair">OC · Original Content</div>
+    <div class="post-body-text">
+      Built a custom Excel dashboard tracking weight (7-day rolling avg), daily steps, HRV, RHR and sleep — all pulled from Apple Watch Ultra. The sleep–HRV–RHR triangle is the most interesting pattern: every poor sleep night shows up as an HRV stress spike and RHR rebound the next morning without fail. Fixed sleep in week 3 and the metrics responded immediately. Tools: Apple Watch Ultra, Excel, Chart.js.
+    </div>
+    <div class="post-footer-bar">
+      <div class="vote">▲ 18.4k</div>
+      <div class="pfb">💬 2.1k comments</div>
+      <div class="pfb">⬆ Share</div>
+      <div class="pfb">🔖 Save</div>
+    </div>
+  </div>
+
+  <div class="header">
+    <div class="week">June 2 – 17, 2026 · 16 days</div>
+    <h1>Personal Health Dashboard <span class="badge badge-g">Week 3</span></h1>
+    <div class="sub">Self-tracked via Apple Watch Ultra · custom Excel tracker · 16 days of data</div>
+  </div>
+
+  <!-- Milestone banner -->
+  <div class="milestone">
+    <div class="mi">🎯</div>
+    <div>
+      <div class="mt">Sub-85kg achieved — Jun 17: 84.95 kg</div>
+      <div class="ms">First major weight milestone crossed · -2.30 kg total · 188.59 km walked · 30-day projection: 350+ km</div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="n or">-2.30<span style="font-size:13px;">kg</span></div>
+      <div class="l">total lost</div>
+      <div class="d gn">87.25 → 84.95</div>
+    </div>
+    <div class="kpi">
+      <div class="n bl">188.6<span style="font-size:13px;">km</span></div>
+      <div class="l">total walked</div>
+      <div class="d gn">11.8 km/day avg</div>
+    </div>
+    <div class="kpi">
+      <div class="n gn">79→64</div>
+      <div class="l">RHR (bpm)</div>
+      <div class="d gn">-19% in 16 days</div>
+    </div>
+    <div class="kpi">
+      <div class="n am">6h 12m</div>
+      <div class="l">avg sleep</div>
+      <div class="d am">trending up</div>
+    </div>
+  </div>
+
+  <!-- Weight + 7DRA + Steps -->
+  <div class="chart-card">
+    <div class="ct">Weight · 7-day rolling average · daily steps</div>
+    <div class="cs">7DRA shows a clean, uninterrupted 16-day decline. Daily weight fluctuates but always returns to trend. Jun 16: personal best 15,074 steps.</div>
+    <div style="position:relative; height:230px;">
+      <canvas id="ch1" role="img" aria-label="Weight declining from 87.25 to 84.95 with daily fluctuations while 7-day rolling average shows smooth decline, steps consistently above 11000 with a peak of 15074 on Jun 16">Weight, 7-day rolling average and steps over 16 days.</canvas>
+    </div>
+    <div class="legend">
+      <div class="leg"><div class="ls" style="background:#ff4500;"></div>Weight (kg)</div>
+      <div class="leg"><div class="ls" style="border-top:2px dashed #ff9966; background:none;"></div>7-day rolling avg</div>
+      <div class="leg"><div class="ls" style="border-top:2px dashed #4fbdff; background:none;"></div>Daily steps</div>
+    </div>
+  </div>
+
+  <!-- Sleep · HRV · RHR -->
+  <div class="chart-card">
+    <div class="ct">The sleep · HRV · RHR triangle — 16 days</div>
+    <div class="cs">The pattern is now undeniable: every poor sleep night produces an HRV spike and RHR rebound the next morning. Two consecutive 7h+ nights (Jun 13–14) produced HRV readings of 97, 110 — the highest genuine recovery signals in the dataset.</div>
+    <div style="position:relative; height:230px;">
+      <canvas id="ch2" role="img" aria-label="RHR declining from 79 to 64 overall with rebounds after poor sleep, HRV showing stress spikes after bad nights and genuine recovery readings after good sleep, sleep improving in week 3">Sleep offset by one day to show causal relationship with next-morning HRV and RHR over 16 days.</canvas>
+    </div>
+    <div class="legend">
+      <div class="leg"><div class="ls" style="background:#ff585b;"></div>RHR (bpm)</div>
+      <div class="leg"><div class="ls" style="border-top:2px dashed #46d160; background:none;"></div>HRV</div>
+      <div class="leg"><div class="ls" style="border-top:2px dotted #f5a623; background:none;"></div>Sleep prev. night (hrs)</div>
+    </div>
+    <div class="annotation">Sleep shown as "previous night" to correctly align cause and effect. Jun 7 (3h 51m) → HRV 88 stress spike. Jun 13 (8h 42m) → HRV 97, RHR 62 — first genuine recovery reading. Jun 14 (7h 33m) → HRV 110, highest in dataset. The body responds within 24 hours.</div>
+  </div>
+
+  <!-- Compliance -->
+  <div class="chart-card">
+    <div class="ct">Daily target compliance · 16 days</div>
+    <div class="cs">800 kcal and 10km — perfect 16-day streak. No sugar — 14/16. Sleep 7h+ — 2/16, both in week 3.</div>
+    <div style="position:relative; height:120px;">
+      <canvas id="ch3" role="img" aria-label="16-day compliance showing 800kcal and 10km targets met every day, no-sugar met 14 of 16 days, sleep 7h achieved only on Jun 13 and Jun 14">Daily compliance across 4 targets over 16 days.</canvas>
+    </div>
+    <div class="legend" style="margin-top:10px;">
+      <div class="leg"><span style="width:10px;height:10px;border-radius:2px;background:#46d160;display:inline-block;"></span>Achieved</div>
+      <div class="leg"><span style="width:10px;height:10px;border-radius:2px;background:#f5a623;display:inline-block;"></span>Partial</div>
+      <div class="leg"><span style="width:10px;height:10px;border-radius:2px;background:#ff585b;display:inline-block;"></span>Missed</div>
+    </div>
+  </div>
+
+  <!-- Insight cards -->
+  <div class="four-col">
+    <div class="insight">
+      <div class="it">distance</div>
+      <div class="in bl">188.6km</div>
+      <div class="ib">Hyderabad → past Warangal. 350km projected by day 30.</div>
+    </div>
+    <div class="insight">
+      <div class="it">best RHR</div>
+      <div class="in gn">62 bpm</div>
+      <div class="ib">Recorded Jun 13 after first 8h+ sleep. Athlete territory.</div>
+    </div>
+    <div class="insight">
+      <div class="it">best HRV</div>
+      <div class="in gn">110</div>
+      <div class="ib">Jun 14, after 7h 33m sleep. First genuine recovery signal.</div>
+    </div>
+    <div class="insight">
+      <div class="it">best day</div>
+      <div class="in or">15,074</div>
+      <div class="ib">Steps on Jun 16. Personal best. 14.10 km, 1,307 kcal.</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="fl">Data: personal · Tools: Apple Watch Ultra, Excel · Jun 2–17, 2026</div>
+    <div class="fr">Next milestone: sustain 7h+ sleep · target 84.0 kg</div>
+  </div>
+
+</div>
+
+<script>
+// Full 16-day dataset
+const days   = ['Jun 2','Jun 3','Jun 4','Jun 5','Jun 6','Jun 7','Jun 8','Jun 9','Jun 10','Jun 11','Jun 12','Jun 13','Jun 14','Jun 15','Jun 16','Jun 17'];
+const weight = [87.25, 86.55, 86.80, 86.50, 86.70, 86.15, 86.30, 85.80, 86.30, 86.40, 85.70, 86.45, 86.20, 85.95, 85.05, 84.95];
+const w7dra  = [87.25, 86.90, 86.87, 86.78, 86.76, 86.66, 86.61, 86.40, 86.36, 86.31, 86.19, 86.16, 86.16, 86.11, 86.01, 85.81];
+const steps  = [12118, 11762, 12589, 12459, 14590, 12295, 13733, 13198, 12156, 11517, 11058, 14079, 12842, 12210, 15074, 12098];
+const rhr    = [79, 72, 66, 71, 64, 65, 72, 72, 66, 63, 64, 62, 66, 69, 67, 64];
+const hrv    = [64, 55, 58, 62, 66, 88, 61, 76, 67, 103, 99, 97, 110, 83, 87, 91];
+// Sleep shifted by one day (previous night's sleep affecting this morning's metrics)
+// Day 1 (Jun 2) has no prior sleep recorded = null
+const sleep  = [null, 2.73, 6.00, 5.62, 6.67, 6.80, 3.85, 6.77, 5.03, 5.17, 6.77, 8.70, 7.55, 5.73, 6.17, 4.75];
+
+const grid = '#2d2d2e';
+const tick = '#545454';
+
+// Chart 1: Weight + 7DRA + Steps
+new Chart(document.getElementById('ch1'), {
+  type: 'line',
+  data: {
+    labels: days,
+    datasets: [
+      { label: 'Weight (kg)', data: weight, borderColor: '#ff4500', backgroundColor: 'transparent', borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: '#ff4500', yAxisID: 'y1', tension: 0.3 },
+      { label: '7-day avg', data: w7dra, borderColor: '#ff9966', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [5,3], pointRadius: 2, pointBackgroundColor: '#ff9966', yAxisID: 'y1', tension: 0.4 },
+      { label: 'Steps', data: steps, borderColor: '#4fbdff', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [4,3], pointRadius: 3, pointStyle: 'rectRot', pointBackgroundColor: steps.map(s => s===15074 ? '#fff' : '#4fbdff'), yAxisID: 'y2', tension: 0.3 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
+    scales: {
+      x: { ticks: { font: { size: 10 }, color: tick }, grid: { color: grid } },
+      y1: { type: 'linear', position: 'left', min: 84.0, max: 87.8, ticks: { font: { size: 10 }, color: '#ff4500', callback: v => v.toFixed(1) }, grid: { color: grid } },
+      y2: { type: 'linear', position: 'right', min: 9000, max: 17000, ticks: { font: { size: 10 }, color: '#4fbdff', callback: v => Math.round(v/1000)+'k' }, grid: { drawOnChartArea: false } }
+    }
+  }
+});
+
+// Chart 2: Sleep · HRV · RHR
+new Chart(document.getElementById('ch2'), {
+  type: 'line',
+  data: {
+    labels: days,
+    datasets: [
+      { label: 'RHR (bpm)', data: rhr, borderColor: '#ff585b', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 3, pointBackgroundColor: rhr.map(v => v <= 62 ? '#ffffff' : '#ff585b'), yAxisID: 'y1', tension: 0.3 },
+      { label: 'HRV', data: hrv, borderColor: '#46d160', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [5,3], pointRadius: 3, pointStyle: 'triangle', pointBackgroundColor: hrv.map(v => v >= 97 ? '#ffffff' : '#46d160'), yAxisID: 'y1', tension: 0.3 },
+      { label: 'Sleep prev. night (hrs)', data: sleep, borderColor: '#f5a623', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [2,2], pointRadius: 3, pointBackgroundColor: sleep.map(v => v >= 7 ? '#ffffff' : '#f5a623'), yAxisID: 'y2', tension: 0.3, spanGaps: false }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        mode: 'index', intersect: false,
+        callbacks: {
+          label: ctx => {
+            if (ctx.dataset.label === 'Sleep prev. night (hrs)') return ctx.parsed.y == null ? 'Sleep: —' : 'Sleep (prev): ' + ctx.parsed.y.toFixed(1) + 'h';
+            return ctx.dataset.label + ': ' + Math.round(ctx.parsed.y);
+          }
+        }
+      }
+    },
+    scales: {
+      x: { ticks: { font: { size: 10 }, color: tick }, grid: { color: grid } },
+      y1: { type: 'linear', position: 'left', min: 45, max: 120, ticks: { font: { size: 10 }, color: tick }, grid: { color: grid } },
+      y2: { type: 'linear', position: 'right', min: 0, max: 11, ticks: { font: { size: 10 }, color: '#f5a623', callback: v => v.toFixed(0)+'h' }, grid: { drawOnChartArea: false } }
+    }
+  }
+});
+
+// Chart 3: Compliance
+// Jun 2–17: 16 days
+// 800kcal: all green
+// 10km: all green
+// No sugar: Jun 6 partial(1), Jun 13 missed(0), rest green(2)
+// Sleep 7h: Jun 13=2, Jun 14=2, rest=0
+const compliance = [
+  { label: '800 kcal', scores: [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2] },
+  { label: '10 km',    scores: [2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2] },
+  { label: 'No sugar', scores: [2,2,2,2,1,2,2,2,2,2,2,0,2,2,2,2] },
+  { label: 'Sleep 7h', scores: [0,0,0,0,0,0,0,0,0,0,0,2,2,0,0,0] }
+];
+const colorMap = { 0:'#ff585b', 1:'#f5a623', 2:'#46d160' };
+
+new Chart(document.getElementById('ch3'), {
+  type: 'bar',
+  data: {
+    labels: days,
+    datasets: compliance.map(t => ({
+      label: t.label,
+      data: t.scores.map(() => 1),
+      backgroundColor: t.scores.map(s => colorMap[s] + 'aa'),
+      borderColor: t.scores.map(s => colorMap[s]),
+      borderWidth: 1,
+      borderRadius: 2,
+      stack: 'stack'
+    }))
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const t = compliance[ctx.datasetIndex];
+            const s = t.scores[ctx.dataIndex];
+            return t.label + ': ' + (s===2 ? 'achieved' : s===1 ? 'partial' : 'missed');
+          }
+        }
+      }
+    },
+    scales: {
+      x: { stacked: true, ticks: { font: { size: 10 }, color: tick }, grid: { display: false } },
+      y: { stacked: true, display: false, max: 4 }
+    }
+  }
+});
+</script>
+</body>
+</html>
