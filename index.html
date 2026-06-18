@@ -137,7 +137,7 @@ function buildDashboard(rows) {
   const noSugar = data.map(r => r[3] ? r[3].trim() : '');
 
   // Sleep shifted by 1 (previous night affects today's metrics)
-  const sleep = sleepRaw.map((_, i) => i === 0 ? null : sleepRaw[i - 1]);
+  const sleep = sleepRaw;
 
   // KPIs
   const firstWeight   = weight[0];
