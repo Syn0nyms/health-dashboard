@@ -224,6 +224,7 @@ function buildDashboard(rows) {
   // Progress toward next 3 locked achievements (rough heuristics for progress %)
   function achProgress(a) {
     if (a.title === 'Sleep streak') return { val: `${streakSleep}/5`, pct: Math.min(100, streakSleep/5*100) };
+    if (a.title === 'First 2.5kg') return { val: `${weightLost.toFixed(1)}/2.5`, pct: Math.min(100, weightLost/2.5*100) };
     if (a.title === 'Sub-80kg') return { val: `${lastWeight.toFixed(1)}/80`, pct: Math.min(100, Math.max(0,(firstWeight-lastWeight)/(firstWeight-80)*100)) };
     if (a.title === '300km club') return { val: `${totalKmNum.toFixed(0)}/300`, pct: Math.min(100, totalKmNum/300*100) };
     if (a.title === '200km club') return { val: `${totalKmNum.toFixed(0)}/200`, pct: Math.min(100, totalKmNum/200*100) };
